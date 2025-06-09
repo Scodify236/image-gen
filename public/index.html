@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gift Card Seller Portal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Add subtle transitions */
+        .transition-all {
+            transition-property: all;
+            transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+            transition-duration: 150ms;
+        }
+        .ease-out {
+            transition-timing-function: cubic-bezier(0, 0, 0.2, 1);
+        }
+        /* Custom styles for potential future use or specific effects */
+         /* Custom spinner color */
+        .loader {
+            border-top-color: #3b82f6; /* Tailwind blue-500 */
+            -webkit-animation: spinner 1.5s linear infinite;
+            animation: spinner 1.5s linear infinite;
+        }
+
+        @-webkit-keyframes spinner {
+            0% { -webkit-transform: rotate(0deg); }
+            100% { -webkit-transform: rotate(360deg); }
+        }
+
+        @keyframes spinner {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-gray-900 to-blue-900 min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 text-gray-200">
+    <div class="max-w-4xl w-full space-y-10">
+        <div class="text-center">
+            <h1 class="text-4xl font-extrabold text-white drop-shadow-lg">Gift Card Seller Portal</h1>
+        </div>
+
+        <!-- Auth Section -->
+        <div id="authSection" class="bg-gray-800 rounded-2xl shadow-2xl overflow-hidden p-10 space-y-8 border border-gray-700">
+            <h2 class="text-3xl font-bold text-center text-white">Welcome</h2>
+            
+            <!-- Login Form -->
+            <div id="loginForm" class="space-y-6">
+                <h3 class="text-xl font-semibold text-gray-300">Login to your account</h3>
+                <div>
+                    <label for="loginUsername" class="block text-sm font-medium text-gray-400">Username</label>
+                    <input type="text" id="loginUsername" autocomplete="username" required class="mt-1 block w-full rounded-md border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 bg-gray-700 text-white p-3">
+                </div>
+                <div>
+                    <label for="loginPassword" class="block text-sm font-medium text-gray-400">Password</label>
+                    <input type="password" id="loginPassword" autocomplete="current-password" required class="mt-1 block w-full rounded-md border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 bg-gray-700 text-white p-3">
+                </div>
+                <button id="loginButton" class="w-full bg-blue-600 text-white py-3 px-6 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all ease-out shadow-lg hover:shadow-xl">
+                    Login
+                </button>
+                <p class="text-center text-sm text-gray-400">
+                    Don't have an account? 
+                    <button id="showRegisterButton" class="text-blue-500 hover:text-blue-400 font-medium transition-all ease-out">Register</button>
+                </p>
+            </div>
+
+            <!-- Register Form -->
+            <div id="registerForm" class="space-y-6 hidden">
+                <h3 class="text-xl font-semibold text-gray-300">Register a new account</h3>
+                <div>
+                    <label for="registerUsername" class="block text-sm font-medium text-gray-400">Username</label>
+                    <input type="text" id="registerUsername" autocomplete="new-username" required class="mt-1 block w-full rounded-md border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 bg-gray-700 text-white p-3">
+                </div>
+                <div>
+                    <label for="registerPassword" class="block text-sm font-medium text-gray-400">Password</label>
+                    <input type="password" id="registerPassword" autocomplete="new-password" required class="mt-1 block w-full rounded-md border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 bg-gray-700 text-white p-3">
+                </div>
+                 <div>
+                    <label for="confirmPassword" class="block text-sm font-medium text-gray-400">Confirm Password</label>
+                    <input type="password" id="confirmPassword" autocomplete="new-password" required class="mt-1 block w-full rounded-md border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 bg-gray-700 text-white p-3">
+                </div>
+                <button id="registerButton" class="w-full bg-green-600 text-white py-3 px-6 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-all ease-out shadow-lg hover:shadow-xl">
+                    Register
+                </button>
+                <p class="text-center text-sm text-gray-400">
+                    Already have an account? 
+                    <button id="showLoginButton" class="text-blue-500 hover:text-blue-400 font-medium transition-all ease-out">Login</button>
+                </p>
+            </div>
+        </div>
+
+        <!-- Gift Card Submission Form -->
+        <div id="submissionForm" class="bg-gray-800 rounded-2xl shadow-2xl overflow-hidden p-10 space-y-8 hidden border border-gray-700">
+            <div class="flex justify-between items-center mb-6">
+                 <h2 class="text-3xl font-bold text-white">Submit Gift Card</h2>
+                <button id="logoutButton" class="text-red-500 hover:text-red-400 font-medium transition-all ease-out">Logout</button>
+            </div>
+
+            <form id="giftCardForm" class="space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label for="ticket_user_name" class="block text-sm font-medium text-gray-400">Ticket User Name</label>
+                        <input type="text" name="ticket_user_name" id="ticket_user_name" required class="mt-1 block w-full rounded-md border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 bg-gray-700 text-white p-3">
+                    </div>
+                    <div>
+                        <label for="ticket_number" class="block text-sm font-medium text-gray-400">Ticket Number</label>
+                        <input type="text" name="ticket_number" id="ticket_number" required class="mt-1 block w-full rounded-md border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 bg-gray-700 text-white p-3">
+                    </div>
+                    <div>
+                        <label for="gc_name" class="block text-sm font-medium text-gray-400">Gift Card Name</label>
+                        <input type="text" name="gc_name" id="gc_name" required class="mt-1 block w-full rounded-md border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 bg-gray-700 text-white p-3">
+                    </div>
+                    <div>
+                        <label for="gc_code" class="block text-sm font-medium text-gray-400">Gift Card Code</label>
+                        <input type="text" name="gc_code" id="gc_code" required class="mt-1 block w-full rounded-md border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 bg-gray-700 text-white p-3">
+                    </div>
+                    <div>
+                        <label for="upi_id" class="block text-sm font-medium text-gray-400">UPI ID</label>
+                        <input type="text" name="upi_id" id="upi_id" required class="mt-1 block w-full rounded-md border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 bg-gray-700 text-white p-3">
+                    </div>
+                    <div>
+                        <label for="amount" class="block text-sm font-medium text-gray-400">Amount</label>
+                        <input type="number" name="amount" id="amount" step="0.01" max="99999999.99" required class="mt-1 block w-full rounded-md border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 bg-gray-700 text-white p-3">
+                        <p class="text-xs text-gray-500 mt-1">Maximum amount: 99,999,999.99</p>
+                    </div>
+                </div>
+                <div>
+                    <label for="proofVideoInput" class="block text-sm font-medium text-gray-400">Proof Video</label>
+                    <input type="file" name="proof_video" id="proofVideoInput" accept="video/*" required class="mt-1 block w-full text-gray-300 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700 transition-all ease-out cursor-pointer">
+                </div>
+                <div class="flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0 sm:space-x-4">
+                    <button type="submit" class="w-full sm:w-auto bg-blue-600 text-white py-3 px-8 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all ease-out shadow-lg hover:shadow-xl">
+                        Submit Gift Card
+                    </button>
+                    <a href="/status" class="w-full sm:w-auto text-center text-blue-500 hover:text-blue-400 font-medium transition-all ease-out">View Submissions Status & Chat</a>
+                </div>
+            </form>
+        </div>
+
+        <!-- Loading Indicator -->
+        <div id="loadingIndicator" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 hidden">
+            <div class="flex flex-col items-center bg-gray-800 p-10 rounded-lg shadow-lg border border-gray-700">
+                <div class="loader ease-linear rounded-full border-4 border-t-4 border-blue-500 h-12 w-12 mb-4"></div>
+                <p id="loadingText" class="text-white text-lg font-semibold">Uploading...</p>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        let userId = null;
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const loadingText = document.getElementById('loadingText');
+
+        // Basic loading indicators
+        function showLoading(message) {
+            loadingText.textContent = message;
+            loadingIndicator.classList.remove('hidden');
+        }
+
+        function hideLoading() {
+            loadingIndicator.classList.add('hidden');
+        }
+
+        // Check session on page load
+        fetch('/api/check-session')
+            .then(response => response.json())
+            .then(data => {
+                if (data.loggedIn) {
+                    userId = data.userId;
+                    document.getElementById('authSection').classList.add('hidden');
+                    document.getElementById('submissionForm').classList.remove('hidden');
+                } else {
+                    document.getElementById('authSection').classList.remove('hidden');
+                    document.getElementById('submissionForm').classList.add('hidden');
+                }
+            });
+
+        // Toggle between login and register forms
+        document.getElementById('showRegisterButton').addEventListener('click', () => {
+            document.getElementById('loginForm').classList.add('hidden');
+            document.getElementById('registerForm').classList.remove('hidden');
+        });
+
+        document.getElementById('showLoginButton').addEventListener('click', () => {
+            document.getElementById('registerForm').classList.add('hidden');
+            document.getElementById('loginForm').classList.remove('hidden');
+        });
+
+        // Login functionality
+        document.getElementById('loginButton').addEventListener('click', async () => {
+            const username = document.getElementById('loginUsername').value;
+            const password = document.getElementById('loginPassword').value;
+
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    userId = data.userId;
+                    document.getElementById('authSection').classList.add('hidden');
+                    document.getElementById('submissionForm').classList.remove('hidden');
+                } else {
+                    alert(data.error || 'Login failed');
+                }
+            } catch (error) {
+                alert('Login failed: ' + error.message);
+            }
+        });
+
+        // Register functionality
+        document.getElementById('registerButton').addEventListener('click', async () => {
+            const username = document.getElementById('registerUsername').value;
+            const password = document.getElementById('registerPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+
+            if (password !== confirmPassword) {
+                alert('Passwords do not match.');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    userId = data.userId;
+                    alert('Registration successful! Please login.');
+                    document.getElementById('registerForm').classList.add('hidden');
+                    document.getElementById('loginForm').classList.remove('hidden');
+
+                } else {
+                    alert(data.error || 'Registration failed');
+                }
+            } catch (error) {
+                alert('Registration failed: ' + error.message);
+            }
+        });
+
+        // Gift card submission
+        const giftCardForm = document.getElementById('giftCardForm');
+
+        async function handleGiftCardSubmit(e) {
+            e.preventDefault();
+            if (!userId) {
+                 alert('Please log in to submit a gift card.');
+                 return;
+            }
+
+            const fileInput = document.getElementById('proofVideoInput');
+            const file = fileInput.files[0];
+
+            if (!file) {
+                alert('Please select a proof video.');
+                return;
+            }
+            
+            try {
+                showLoading('Uploading video...');
+                const formData = new FormData();
+                formData.append('file', file);
+
+                // Upload video to File2Link
+                const uploadResponse = await fetch('https://file2link-21oh.onrender.com/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!uploadResponse.ok) {
+                    const errorText = await uploadResponse.text();
+                    throw new Error(`Upload failed: ${uploadResponse.status} ${uploadResponse.statusText} - ${errorText}`);
+                }
+
+                const uploadData = await uploadResponse.json();
+                const videoUrl = uploadData.access_url;
+
+                hideLoading();
+                showLoading('Submitting gift card data...');
+
+                // Submit gift card data with the video URL
+                const giftCardData = {
+                    userId: userId,
+                    ticketUserName: document.querySelector('#giftCardForm input[name="ticket_user_name"]').value,
+                    ticketNumber: document.querySelector('#giftCardForm input[name="ticket_number"]').value,
+                    gcName: document.querySelector('#giftCardForm input[name="gc_name"]').value,
+                    gcCode: document.querySelector('#giftCardForm input[name="gc_code"]').value,
+                    upiId: document.querySelector('#giftCardForm input[name="upi_id"]').value,
+                    amount: parseFloat(document.querySelector('#giftCardForm input[name="amount"]').value),
+                    proofVideoUrl: videoUrl
+                };
+
+                const response = await fetch('/api/gift-cards', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(giftCardData)
+                });
+
+                if (!response.ok) {
+                     const errorText = await response.text();
+                     throw new Error(`Submission failed: ${response.status} ${response.statusText} - ${errorText}`);
+                }
+
+                const data = await response.json();
+                if (data.success) {
+                    alert('Gift card submitted successfully!');
+                    giftCardForm.reset();
+                    // Optionally refresh submissions list on status page if user is viewing it
+                } else {
+                    alert('Failed to submit gift card: ' + (data.error || 'Unknown error'));
+                }
+            } catch (err) {
+                alert('Error during submission: ' + err.message);
+            } finally {
+                hideLoading();
+            }
+        }
+
+        giftCardForm.addEventListener('submit', handleGiftCardSubmit);
+
+        // Logout functionality
+        document.getElementById('logoutButton').addEventListener('click', () => {
+            fetch('/api/logout', { method: 'POST' })
+                .then(() => {
+                    window.location.reload();
+                });
+        });
+    </script>
+</body>
+</html> 

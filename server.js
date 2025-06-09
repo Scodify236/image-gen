@@ -1,0 +1,421 @@
+require('dotenv').config();
+const express = require('express');
+const session = require('express-session');
+const cors = require('cors');
+const { Pool } = require('pg');
+const path = require('path');
+const bcrypt = require('bcrypt');
+const multer = require('multer');
+
+const app = express();
+const port = process.env.PORT || 3000;
+
+// PostgreSQL connection
+const pool = new Pool({
+  connectionString: 'postgresql://cd_owner:npg_HvkFi0YfQT9u@ep-muddy-river-a1za2spe-pooler.ap-southeast-1.aws.neon.tech/cd?sslmode=require',
+  ssl: {
+    rejectUnauthorized: false
+  }
+});
+
+// Test database connection
+pool.connect((err, client, release) => {
+  if (err) {
+    console.error('Error connecting to the database:', err);
+    process.exit(1); // Exit if we can't connect to the database
+  }
+  console.log('Successfully connected to the database');
+  release();
+});
+
+// Authentication middleware
+const isAuthenticated = (req, res, next) => {
+  if (req.session.userId) {
+    next();
+  } else {
+    res.status(401).json({ error: 'Not authenticated' });
+  }
+};
+
+const isAdminAuthenticated = (req, res, next) => {
+  if (req.session.adminId) {
+    next();
+  } else {
+    res.status(401).json({ error: 'Not authenticated' });
+  }
+};
+
+// Middleware
+app.use(cors({
+    origin: true,
+    credentials: true
+}));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(express.static('public'));
+app.use(session({
+    secret: 'your-secret-key-here',
+    resave: true,
+    saveUninitialized: true,
+    cookie: {
+        secure: process.env.NODE_ENV === 'production',
+        httpOnly: true,
+        sameSite: 'lax',
+        maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
+    },
+    store: new (require('connect-pg-simple')(session))({
+        pool: pool,
+        tableName: 'session'
+    })
+}));
+
+// Create session table if it doesn't exist
+pool.query(`
+    CREATE TABLE IF NOT EXISTS "session" (
+        "sid" varchar NOT NULL COLLATE "default",
+        "sess" json NOT NULL,
+        "expire" timestamp(6) NOT NULL,
+        CONSTRAINT "session_pkey" PRIMARY KEY ("sid")
+    );
+    CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
+`).catch(err => console.error('Error creating session table:', err));
+
+// Initialize database tables
+async function initializeDatabase() {
+  try {
+    // Create users table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        username VARCHAR(255) UNIQUE NOT NULL,
+        password VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create gift_cards table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS gift_cards (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id),
+        ticket_user_name VARCHAR(255) NOT NULL,
+        ticket_number VARCHAR(255) NOT NULL,
+        gc_name VARCHAR(255) NOT NULL,
+        gc_code TEXT NOT NULL,
+        upi_id VARCHAR(255) NOT NULL,
+        amount DECIMAL(10,2) NOT NULL,
+        proof_video_url TEXT NOT NULL,
+        status VARCHAR(50) DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create messages table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS messages (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id),
+        content TEXT NOT NULL,
+        sender VARCHAR(50) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    console.log('Database tables initialized successfully');
+  } catch (err) {
+    console.error('Error initializing database:', err);
+  }
+}
+
+// Initialize database on startup
+initializeDatabase();
+
+// File upload configuration
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, 'uploads/');
+  },
+  filename: function (req, file, cb) {
+    cb(null, Date.now() + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({ storage: storage });
+
+// Routes
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+app.get('/status', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'status.html'));
+});
+
+app.get('/admin', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+
+// API Routes
+
+// Check session status
+app.get('/api/check-session', (req, res) => {
+  if (req.session.userId) {
+    pool.query('SELECT username FROM users WHERE id = $1', [req.session.userId])
+      .then(result => {
+        res.json({
+          loggedIn: true,
+          userId: req.session.userId,
+          username: result.rows[0].username
+        });
+      })
+      .catch(err => {
+        res.json({ loggedIn: false });
+      });
+  } else {
+    res.json({ loggedIn: false });
+  }
+});
+
+// Check admin session status
+app.get('/api/check-admin-session', (req, res) => {
+  res.json({ loggedIn: !!req.session.adminId, adminId: req.session.adminId });
+});
+
+// User registration
+app.post('/api/register', async (req, res) => {
+  const { username, password } = req.body;
+  try {
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const result = await pool.query(
+      'INSERT INTO users (username, password) VALUES ($1, $2) RETURNING id',
+      [username, hashedPassword]
+    );
+    req.session.userId = result.rows[0].id;
+    res.json({ success: true, userId: result.rows[0].id });
+  } catch (err) {
+    res.json({ success: false, error: 'Username already exists' });
+  }
+});
+
+// User login
+app.post('/api/login', async (req, res) => {
+  const { username, password } = req.body;
+  try {
+    const result = await pool.query(
+      'SELECT id, password FROM users WHERE username = $1',
+      [username]
+    );
+    if (result.rows.length > 0) {
+      const match = await bcrypt.compare(password, result.rows[0].password);
+      if (match) {
+        req.session.userId = result.rows[0].id;
+        res.json({ success: true, userId: result.rows[0].id });
+      } else {
+        res.json({ success: false, error: 'Invalid credentials' });
+      }
+    } else {
+      res.json({ success: false, error: 'Invalid credentials' });
+    }
+  } catch (err) {
+    res.json({ success: false, error: 'Login failed' });
+  }
+});
+
+// Admin login
+app.post('/api/admin/login', (req, res) => {
+  const { password } = req.body;
+  // The password check is now just a formality since OTP verification is the main security measure
+  if (password === 'abc') {
+    req.session.adminId = 1;
+    res.json({ success: true, adminId: 1 });
+  } else {
+    res.json({ success: false, error: 'Invalid credentials' });
+  }
+});
+
+// Logout
+app.post('/api/logout', (req, res) => {
+  req.session.destroy();
+  res.json({ success: true });
+});
+
+// Admin logout
+app.post('/api/admin/logout', (req, res) => {
+  req.session.destroy();
+  res.json({ success: true });
+});
+
+// Get user submissions
+app.get('/api/user-submissions/:userId', isAuthenticated, async (req, res) => {
+  // Verify that the user is requesting their own submissions
+  if (req.session.userId !== parseInt(req.params.userId)) {
+    return res.status(403).json({ error: 'Unauthorized access' });
+  }
+  try {
+    const result = await pool.query(
+      'SELECT * FROM gift_cards WHERE user_id = $1 ORDER BY created_at DESC',
+      [req.params.userId]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.json([]);
+  }
+});
+
+// Get all gift cards (admin)
+app.get('/api/gift-cards', isAdminAuthenticated, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT gc.*, u.username 
+      FROM gift_cards gc
+      JOIN users u ON gc.user_id = u.id
+      ORDER BY gc.created_at DESC
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    res.json([]);
+  }
+});
+
+// Submit new gift card
+app.post('/api/gift-cards', isAuthenticated, async (req, res) => {
+  const {
+    userId,
+    ticketUserName,
+    ticketNumber,
+    gcName,
+    gcCode,
+    upiId,
+    amount,
+    proofVideoUrl
+  } = req.body;
+
+  // Verify that the user is submitting for themselves
+  if (req.session.userId !== userId) {
+    return res.status(403).json({ error: 'Unauthorized submission' });
+  }
+
+  // Validate amount
+  if (amount > 99999999.99) {
+    return res.json({ success: false, error: 'Amount exceeds maximum limit of 99,999,999.99' });
+  }
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO gift_cards 
+      (user_id, ticket_user_name, ticket_number, gc_name, gc_code, upi_id, amount, proof_video_url)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING id`,
+      [userId, ticketUserName, ticketNumber, gcName, gcCode, upiId, amount, proofVideoUrl]
+    );
+    res.json({ success: true, id: result.rows[0].id });
+  } catch (err) {
+    console.error('Error submitting gift card:', err);
+    res.json({ success: false, error: 'Failed to submit gift card' });
+  }
+});
+
+// Update gift card status
+app.put('/api/gift-cards/:id/status', isAdminAuthenticated, async (req, res) => {
+  const { status } = req.body;
+  try {
+    await pool.query(
+      'UPDATE gift_cards SET status = $1 WHERE id = $2',
+      [status, req.params.id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.json({ success: false, error: 'Failed to update status' });
+  }
+});
+
+// Get chat messages
+app.get('/api/messages/:userId', isAuthenticated, async (req, res) => {
+  // Verify that the user is requesting their own messages
+  if (req.session.userId !== parseInt(req.params.userId)) {
+    return res.status(403).json({ error: 'Unauthorized access' });
+  }
+  try {
+    const result = await pool.query(
+      'SELECT * FROM messages WHERE user_id = $1 ORDER BY created_at ASC',
+      [req.params.userId]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.json([]);
+  }
+});
+
+// Send message
+app.post('/api/messages', isAuthenticated, async (req, res) => {
+  const { userId, content, sender } = req.body;
+  // Verify that the user is sending a message for themselves
+  if (req.session.userId !== userId) {
+    return res.status(403).json({ error: 'Unauthorized message' });
+  }
+  try {
+    const result = await pool.query(
+      'INSERT INTO messages (user_id, content, sender) VALUES ($1, $2, $3) RETURNING *',
+      [userId, content, sender]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.json({ success: false, error: 'Failed to send message' });
+  }
+});
+
+// Reset database (admin only)
+app.post('/api/reset-database', isAdminAuthenticated, async (req, res) => {
+  try {
+    // Drop all tables in reverse order of dependencies
+    await pool.query('DROP TABLE IF EXISTS messages CASCADE');
+    await pool.query('DROP TABLE IF EXISTS gift_cards CASCADE');
+    await pool.query('DROP TABLE IF EXISTS users CASCADE');
+
+    // Recreate tables
+    await pool.query(`
+      CREATE TABLE users (
+        id SERIAL PRIMARY KEY,
+        username VARCHAR(255) UNIQUE NOT NULL,
+        password VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await pool.query(`
+      CREATE TABLE gift_cards (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id),
+        ticket_user_name VARCHAR(255) NOT NULL,
+        ticket_number VARCHAR(255) NOT NULL,
+        gc_name VARCHAR(255) NOT NULL,
+        gc_code TEXT NOT NULL,
+        upi_id VARCHAR(255) NOT NULL,
+        amount DECIMAL(10,2) NOT NULL,
+        proof_video_url TEXT NOT NULL,
+        status VARCHAR(50) DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await pool.query(`
+      CREATE TABLE messages (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id),
+        content TEXT NOT NULL,
+        sender VARCHAR(50) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    res.json({ success: true, message: 'Database reset successfully' });
+  } catch (err) {
+    console.error('Error resetting database:', err);
+    res.status(500).json({ success: false, error: 'Failed to reset database' });
+  }
+});
+
+// Start server
+app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
+}); 

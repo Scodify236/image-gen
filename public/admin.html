@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gift Card Management - Admin Panel</title>
+    <!-- <link rel="icon" type="image/svg+xml" href="favicon.svg"> -->
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+     <style>
+        /* Add subtle transitions */
+        .transition-all {
+            transition-property: all;
+            transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+            transition-duration: 150ms;
+        }
+        .ease-out {
+            transition-timing-function: cubic-bezier(0, 0, 0.2, 1);
+            transition-duration: 200ms;
+        }
+        
+        /* Message styles */
+        .message {
+            display: none;
+            padding: 1rem;
+            margin: 1rem 0;
+            border-radius: 0.5rem;
+        }
+        .message.success {
+            background-color: #065f46;
+            color: #d1fae5;
+            border: 1px solid #059669;
+        }
+        .message.error {
+            background-color: #991b1b;
+            color: #fee2e2;
+            border: 1px solid #dc2626;
+        }
+        
+        /* Loading indicator */
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 1rem 0;
+            color: #60a5fa;
+        }
+        .loading::after {
+            content: "...";
+            animation: dots 1.5s steps(5, end) infinite;
+        }
+        @keyframes dots {
+            0%, 20% { content: "."; }
+            40% { content: ".."; }
+            60% { content: "..."; }
+            80%, 100% { content: ""; }
+        }
+        
+        /* Custom spinner color */
+        .loader {
+            border-top-color: #3b82f6;
+            -webkit-animation: spinner 1.5s linear infinite;
+            animation: spinner 1.5s linear infinite;
+        }
+
+        @-webkit-keyframes spinner {
+            0% { -webkit-transform: rotate(0deg); }
+            100% { -webkit-transform: rotate(360deg); }
+        }
+
+        @keyframes spinner {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Ensure Tailwind's hidden utility works with modals */
+        .modal:not(.hidden) {
+            display: flex !important;
+        }
+
+        /* Keep some minimal base styles if necessary, but prefer Tailwind classes */
+        /* .container, .auth-section, .dashboard-header, .header-actions, .stats-container, .stat-card, .stat-value, .stat-label, .admin-content, .submissions-container, .submissions-section, .submissions-grid, .modal, .modal-content, .chat-modal-content, .chat-header, .chat-messages, .chat-form, .confirmation-modal, .confirmation-content, .confirmation-title, .confirmation-message, .confirmation-actions */
+        /* Specific styling for submission cards within the grid might need updates in admin.js */
+
+    </style>
+</head>
+<body class="bg-gradient-to-br from-gray-900 to-blue-900 min-h-screen flex flex-col items-center py-12 px-4 sm:px-6 lg:px-8 text-gray-200">
+    <div class="w-full max-w-7xl space-y-10">
+        <div class="text-center">
+            <h1 class="text-4xl font-extrabold text-white drop-shadow-lg">Admin Panel</h1>
+        </div>
+
+        <div id="admin-auth" class="bg-gray-800 rounded-2xl shadow-2xl overflow-hidden p-10 max-w-md mx-auto space-y-6 border border-gray-700">
+            <h2 class="text-3xl font-bold text-center text-white">Admin Login</h2>
+            <div id="message" class="message hidden"></div>
+            <div id="loading" class="loading hidden">Processing</div>
+            <div class="space-y-4">
+                <button id="sendOtpButton" 
+                        class="w-full bg-blue-600 text-white py-3 px-6 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all ease-out shadow-lg hover:shadow-xl">
+                    Send OTP
+                </button>
+                
+                <input type="text" 
+                       id="otpInput" 
+                       placeholder="Enter OTP" 
+                       class="mt-1 block w-full rounded-md border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 bg-gray-700 text-white p-3"
+                       disabled
+                       maxlength="6"
+                       pattern="[0-9]*"
+                       inputmode="numeric">
+                
+                <button id="verifyButton" 
+                        class="w-full bg-green-600 text-white py-3 px-6 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-all ease-out shadow-lg hover:shadow-xl"
+                        disabled>
+                    Verify OTP
+                </button>
+            </div>
+        </div>
+
+        <div id="admin-dashboard" style="display: none;" class="space-y-10">
+            <div class="flex justify-between items-center pb-6 border-b border-gray-700">
+                <h2 class="text-3xl font-bold text-white">Dashboard</h2>
+                <div class="flex space-x-4">
+                    <button id="resetBtn" class="bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-all ease-out text-sm">
+                        <i class="fas fa-trash-alt"></i> Reset Database
+                    </button>
+                    <button id="refreshBtn" class="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all ease-out text-sm">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                    <button id="logoutBtn" class="bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-all ease-out text-sm">Logout</button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
+                <div class="bg-gray-800 rounded-lg shadow-md p-6 text-center border border-gray-700 hover:shadow-xl transition-all ease-out">
+                    <div class="text-3xl font-bold text-blue-400" id="total-submissions">0</div>
+                    <div class="text-sm text-gray-400">Total</div>
+                </div>
+                <div class="bg-gray-800 rounded-lg shadow-md p-6 text-center border border-gray-700 hover:shadow-xl transition-all ease-out">
+                    <div class="text-3xl font-bold text-yellow-400" id="pending-submissions">0</div>
+                    <div class="text-sm text-gray-400">Pending</div>
+                </div>
+                <div class="bg-gray-800 rounded-lg shadow-md p-6 text-center border border-gray-700 hover:shadow-xl transition-all ease-out">
+                    <div class="text-3xl font-bold text-green-400" id="approved-submissions">0</div>
+                    <div class="text-sm text-gray-400">Approved</div>
+                </div>
+                <div class="bg-gray-800 rounded-lg shadow-md p-6 text-center border border-gray-700 hover:shadow-xl transition-all ease-out">
+                    <div class="text-3xl font-bold text-purple-400" id="paid-submissions">0</div>
+                    <div class="text-sm text-gray-400">Paid</div>
+                </div>
+                 <div class="bg-gray-800 rounded-lg shadow-md p-6 text-center border border-gray-700 hover:shadow-xl transition-all ease-out">
+                    <div class="text-3xl font-bold text-red-400" id="rejected-submissions">0</div>
+                    <div class="text-sm text-gray-400">Rejected</div>
+                </div>
+            </div>
+
+            <div class="space-y-10">
+                <div class="space-y-8">
+                    <div class="space-y-4">
+                        <h3 class="text-2xl font-bold text-white">Pending & Approved Submissions</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="pending-submissions-grid"></div>
+                    </div>
+                    
+                    <div class="space-y-4">
+                        <h3 class="text-2xl font-bold text-white">Paid Submissions</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="paid-submissions-grid"></div>
+                    </div>
+
+                    <div class="space-y-4">
+                        <h3 class="text-2xl font-bold text-white">Rejected Submissions</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="rejected-submissions-grid"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chat Modal -->
+            <div id="chat-modal" class="modal hidden">
+                <div class="modal-content chat-modal-content bg-gray-800 rounded-lg shadow-xl max-w-xl w-full m-4 flex flex-col border border-gray-700">
+                    <div class="chat-header flex justify-between items-center p-4 border-b border-gray-700">
+                        <h3 class="text-lg font-semibold text-white">Chat with <span id="chat-seller-name" class="font-normal text-gray-300"></span></h3>
+                         <button onclick="closeChatModal()" class="text-gray-400 hover:text-gray-200">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                    <div id="admin-chat-messages" class="flex-grow overflow-y-auto p-4 space-y-4 text-sm text-gray-300 bg-gray-900">
+                        <!-- Messages will be populated here -->
+                    </div>
+                    <form id="admin-chat-form" class="p-4 border-t border-gray-700 flex space-x-4">
+                        <input type="text" id="admin-message-input" placeholder="Type your message..." required class="flex-grow rounded-md border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 bg-gray-700 text-white p-2">
+                        <button type="submit" class="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all ease-out text-sm">Send</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Video Modal -->
+            <div id="video-modal" class="modal hidden">
+                <div class="modal-content bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full m-4 border border-gray-700">
+                    <div class="flex justify-between items-center p-4 border-b border-gray-700">
+                        <h3 class="text-lg font-semibold text-white">Proof Video</h3>
+                         <button onclick="closeVideoModal()" class="text-gray-400 hover:text-gray-200">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="p-4">
+                        <video id="modal-video" controls class="w-full">
+                            Your browser does not support the video tag.
+                        </video>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reset Confirmation Modal -->
+    <div id="reset-confirmation-modal" class="modal hidden">
+        <div class="bg-gray-800 rounded-lg shadow-xl p-8 max-w-sm mx-auto space-y-6 border border-gray-700 text-center">
+            <h3 class="text-xl font-semibold text-white">Reset Database</h3>
+            <p class="text-gray-300 text-sm">Are you sure you want to reset the database? This will delete all data and cannot be undone.</p>
+            <div class="flex justify-center space-x-4">
+                <button class="cancel-btn bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-all ease-out text-sm">Cancel</button>
+                <button class="confirm-btn bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-all ease-out text-sm">Reset Database</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Final Confirmation Modal -->
+    <div id="final-confirmation-modal" class="modal hidden">
+        <div class="bg-gray-800 rounded-lg shadow-xl p-8 max-w-sm mx-auto space-y-6 border border-gray-700 text-center">
+            <h3 class="text-xl font-semibold text-white">Final Confirmation</h3>
+            <p class="text-gray-300 text-sm">This is your last chance to cancel. Are you absolutely sure you want to reset the database?</p>
+            <div class="flex justify-center space-x-4">
+                <button class="cancel-btn bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-all ease-out text-sm">Cancel</button>
+                <button class="confirm-btn bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-all ease-out text-sm">Yes, Reset Database</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="admin.js"></script>
+</body>
+</html> 

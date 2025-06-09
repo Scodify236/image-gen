@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Submission Status - Gift Card Seller Portal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+     <style>
+        /* Add subtle transitions */
+        .transition-all {
+            transition-property: all;
+            transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+            transition-duration: 150ms;
+        }
+        .ease-out {
+            transition-timing-function: cubic-bezier(0, 0, 0.2, 1);
+        }
+        /* Custom styles for potential future use or specific effects */
+         /* Custom spinner color (if needed, though not strictly for this page) */
+        .loader {
+            border-top-color: #3b82f6; /* Tailwind blue-500 */
+            -webkit-animation: spinner 1.5s linear infinite;
+            animation: spinner 1.5s linear infinite;
+        }
+
+        @-webkit-keyframes spinner {
+            0% { -webkit-transform: rotate(0deg); }
+            100% { -webkit-transform: rotate(360deg); }
+        }
+
+        @keyframes spinner {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-gray-900 to-blue-900 min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 text-gray-200">
+    <div class="max-w-6xl w-full space-y-10">
+        <div class="text-center">
+            <h1 class="text-4xl font-extrabold text-white drop-shadow-lg">Your Submissions Status</h1>
+        </div>
+
+        <!-- Auth Section -->
+        <div id="authSection" class="max-w-md mx-auto bg-gray-800 rounded-2xl shadow-2xl overflow-hidden p-10 space-y-6 border border-gray-700">
+            <h2 class="text-3xl font-bold mb-6 text-center text-white">Login to View Status</h2>
+            <div class="space-y-6">
+                <div>
+                    <label for="loginUsername" class="block text-sm font-medium text-gray-400">Username</label>
+                    <input type="text" id="loginUsername" autocomplete="username" required class="mt-1 block w-full rounded-md border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 bg-gray-700 text-white p-3">
+                </div>
+                <div>
+                    <label for="loginPassword" class="block text-sm font-medium text-gray-400">Password</label>
+                    <input type="password" id="loginPassword" autocomplete="current-password" required class="mt-1 block w-full rounded-md border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 bg-gray-700 text-white p-3">
+                </div>
+                <button onclick="login()" class="w-full bg-blue-600 text-white py-3 px-6 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all ease-out shadow-lg hover:shadow-xl">
+                    Login
+                </button>
+                <p class="text-center text-sm text-gray-400">
+                    <a href="/" class="text-blue-500 hover:text-blue-400 font-medium transition-all ease-out">Go to Submission Page</a>
+                </p>
+            </div>
+        </div>
+
+        <!-- Status Section -->
+        <div id="statusSection" class="hidden w-full space-y-10">
+            <div class="flex justify-end items-center">
+                 <button onclick="logout()" class="text-red-500 hover:text-red-400 font-medium transition-all ease-out">Logout</button>
+            </div>
+
+            <!-- Submissions List -->
+            <div>
+                 <h3 class="text-2xl font-bold text-white mb-6">Your Submissions</h3>
+                 <div id="submissionsList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <!-- Submissions will be populated here as cards -->
+                 </div>
+            </div>
+
+            <!-- Chat Section -->
+            <div class="bg-gray-800 rounded-2xl shadow-2xl overflow-hidden p-8 space-y-6 border border-gray-700">
+                <h3 class="text-2xl font-bold text-white">Chat with Admin</h3>
+                <div id="chatMessages" class="h-64 overflow-y-auto p-4 border border-gray-700 rounded-md bg-gray-900 space-y-4 text-gray-300 text-sm">
+                    <!-- Messages will be populated here -->
+                </div>
+                <div class="flex space-x-4">
+                    <input type="text" id="messageInput" placeholder="Type your message..." class="flex-1 rounded-md border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 bg-gray-700 text-white p-3">
+                    <button onclick="sendMessage()" class="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all ease-out">
+                        Send
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Video Modal -->
+    <div id="videoModal" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 hidden">
+        <div class="bg-gray-800 rounded-lg overflow-hidden shadow-xl max-w-4xl w-full m-4 border border-gray-700">
+            <div class="flex justify-between items-center p-4 border-b border-gray-700">
+                <h3 class="text-lg font-semibold text-white">Proof Video</h3>
+                <button onclick="closeVideoModal()" class="text-gray-400 hover:text-gray-200">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="p-4">
+                <video id="modalVideo" controls class="w-full"></video>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let userId = null;
+        const videoModal = document.getElementById('videoModal');
+        const modalVideo = document.getElementById('modalVideo');
+
+        function showVideoModal(url) {
+            modalVideo.src = url;
+            videoModal.classList.remove('hidden');
+        }
+
+        function closeVideoModal() {
+            modalVideo.pause();
+            modalVideo.src = ''; // Clear video source on close
+            videoModal.classList.add('hidden');
+        }
+
+        // Check session on page load
+        fetch('/api/check-session')
+            .then(response => response.json())
+            .then(data => {
+                if (data.loggedIn) {
+                    userId = data.userId;
+                    document.getElementById('authSection').classList.add('hidden');
+                    document.getElementById('statusSection').classList.remove('hidden');
+                    loadSubmissions();
+                    loadMessages();
+                } else {
+                    document.getElementById('authSection').classList.remove('hidden');
+                    document.getElementById('statusSection').classList.add('hidden');
+                }
+            });
+
+        function login() {
+            const username = document.getElementById('loginUsername').value;
+            const password = document.getElementById('loginPassword').value;
+
+            fetch('/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    userId = data.userId;
+                    document.getElementById('authSection').classList.add('hidden');
+                    document.getElementById('statusSection').classList.remove('hidden');
+                    loadSubmissions();
+                    loadMessages();
+                } else {
+                    alert(data.error || 'Login failed');
+                }
+            });
+        }
+
+        function logout() {
+            fetch('/api/logout', { method: 'POST' })
+                .then(() => {
+                    window.location.reload();
+                });
+        }
+
+        function loadSubmissions() {
+            fetch(`/api/user-submissions/${userId}`)
+                .then(response => response.json())
+                .then(submissions => {
+                    const submissionsList = document.getElementById('submissionsList');
+                    submissionsList.innerHTML = submissions.map(sub => `
+                        <div class="bg-gray-800 rounded-lg shadow-md p-6 space-y-4 flex flex-col border border-gray-700 hover:shadow-xl transition-all ease-out">
+                            <div class="flex justify-between items-center">
+                                <span class="text-sm text-gray-400">${new Date(sub.created_at).toLocaleDateString()}</span>
+                                <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full 
+                                    ${sub.status === 'approved' ? 'bg-green-500 text-white' : 
+                                    sub.status === 'rejected' ? 'bg-red-500 text-white' : 
+                                    'bg-yellow-500 text-white'}">
+                                    ${sub.status}
+                                </span>
+                            </div>
+                            <h3 class="text-lg font-semibold text-white">${sub.gc_name} - ₹${sub.amount}</h3>
+                            <p class="text-sm text-gray-400 flex-grow">Ticket: ${sub.ticket_number}</p>
+                            <button onclick="showVideoModal('${sub.proof_video_url}')" class="text-blue-500 hover:text-blue-400 text-sm text-left p-0 self-start font-medium transition-all ease-out">
+                                View Proof Video
+                            </button>
+                        </div>
+                    `).join('');
+                });
+        }
+
+        function loadMessages() {
+            fetch(`/api/messages/${userId}`)
+                .then(response => response.json())
+                .then(messages => {
+                    const chatContainer = document.getElementById('chatMessages');
+                    chatContainer.innerHTML = messages.map(msg => `
+                        <div class="flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}">
+                            <div class="max-w-xs lg:max-w-md px-4 py-2 rounded-lg 
+                                ${msg.sender === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300'}">
+                                ${msg.content}
+                            </div>
+                        </div>
+                    `).join('');
+                    chatContainer.scrollTop = chatContainer.scrollHeight;
+                });
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const content = input.value.trim();
+            
+            if (content) {
+                fetch('/api/messages', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userId: userId,
+                        content: content,
+                        sender: 'user'
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        input.value = '';
+                        loadMessages();
+                    }
+                });
+            }
+        }
+
+        // Poll for new messages every 5 seconds
+        setInterval(loadMessages, 5000);
+    </script>
+</body>
+</html> 
