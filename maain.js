@@ -173,10 +173,10 @@ function parseQueue(data) {
 }
 
 // ─── Core logic ───────────────────────────────────────────────────────────────
-// Fetch all queues in parallel, then intersect: keep only videoIds that are
-// present in EVERY seed's queue map.
+// Fetch all queues in parallel, then score: rank tracks by how many seed
+// queues they appear in. Return top results sorted by score descending.
 
-async function buildFeed(seedIds, limit) {
+async function buildFeed(seedIds, limit, minScore = 1) {
   const seedSet = new Set(seedIds);
 
   // Parallel fetch
@@ -192,7 +192,7 @@ async function buildFeed(seedIds, limit) {
 
     if (result.status === "rejected") {
       perSeed.push({ seedId, ok: false, error: result.reason?.message, queueSize: 0 });
-      queueMaps.push(new Map()); // empty — will kill intersection
+      queueMaps.push(new Map());
       continue;
     }
 
@@ -205,32 +205,40 @@ async function buildFeed(seedIds, limit) {
     queueMaps.push(qmap);
   }
 
-  if (queueMaps.length === 0) {
-    return { feed: [], meta: { seeds: seedIds, totalSeeds: seedIds.length, perSeed } };
-  }
+  // Score each track by how many queues it appears in
+  const scores = new Map(); // videoId -> { meta, score }
 
-  // Intersection: start from the smallest queue for efficiency
-  const sorted = [...queueMaps].sort((a, b) => a.size - b.size);
-  const [smallest, ...rest] = sorted;
-
-  const intersected = [];
-  for (const [videoId, meta] of smallest) {
-    if (rest.every((qmap) => qmap.has(videoId))) {
-      intersected.push(meta);
+  for (const qmap of queueMaps) {
+    for (const [videoId, meta] of qmap) {
+      if (scores.has(videoId)) {
+        scores.get(videoId).score += 1;
+      } else {
+        scores.set(videoId, { meta, score: 1 });
+      }
     }
   }
 
-  // Sort alphabetically by title, apply limit
-  intersected.sort((a, b) => a.title.localeCompare(b.title));
-  const feed = intersected.slice(0, limit);
+  // Sort by score desc, then title asc as tiebreaker
+  const ranked = [...scores.values()]
+    .filter(({ score }) => score >= minScore)
+    .sort(
+      (a, b) => b.score - a.score || a.meta.title.localeCompare(b.meta.title)
+    );
+
+  const feed = ranked.slice(0, limit).map(({ meta, score }) => ({
+    ...meta,
+    score,        // how many seeds recommended this track
+    maxScore: queueMaps.length, // out of this many seeds
+  }));
 
   return {
     feed,
     meta: {
       seeds: seedIds,
       totalSeeds: seedIds.length,
-      intersectionSize: intersected.length,
+      uniqueTracksFound: scores.size,
       returnedTracks: feed.length,
+      minScore,
       perSeed,
     },
   };
@@ -245,6 +253,7 @@ app.get("/health", (_req, res) => {
 app.get("/api/feed", async (req, res) => {
   const idsParam = req.query.ids ?? "";
   const limitParam = parseInt(req.query.limit ?? "50", 10);
+  const minScoreParam = parseInt(req.query.minScore ?? "1", 10);
 
   const ids = idsParam
     .split(",")
@@ -264,9 +273,10 @@ app.get("/api/feed", async (req, res) => {
   }
 
   const limit = Math.min(Math.max(isNaN(limitParam) ? 50 : limitParam, 1), 200);
+  const minScore = Math.min(Math.max(isNaN(minScoreParam) ? 1 : minScoreParam, 1), ids.length);
 
   try {
-    const result = await buildFeed(ids, limit);
+    const result = await buildFeed(ids, limit, minScore);
     res.json(result);
   } catch (err) {
     console.error(err);
@@ -279,4 +289,5 @@ app.get("/api/feed", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`ytm-feed-builder running on http://localhost:${PORT}`);
   console.log(`  GET /api/feed?ids=ID1,ID2,...`);
+  console.log(`  Optional: &limit=50&minScore=2`);
 });
